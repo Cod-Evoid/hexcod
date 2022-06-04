@@ -8,6 +8,7 @@ esbuild.build({
     },
     target: 'es2020',
     format: 'esm',
+    sourcemap: true,
     bundle: true,
     outdir: 'lib',
     plugins: [

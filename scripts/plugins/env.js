@@ -10,7 +10,6 @@ export function EnvPlugin() {
                 options = build.initialOptions;
     
             if (isDev) {
-                options.sourcemap = true;
                 options.watch = true;
             } else {
                 options.minify = true;
