@@ -10,88 +10,88 @@ const buffer = new ArrayBuffer(8),
     i64 = new BigInt64Array(buffer),
     u64 = new BigUint64Array(buffer);
 
-export function uint8ToInt8(a: number): number {
-    u8[0] = a;
+export function uint8ToInt8(input: Uint8Array, offset: number): number {
+    u8[0] = input[offset];
 
     return i8[0];
 }
 
-export function uint8ToInt16(a: number, b: number): number {
-    u8[0] = a;
-    u8[1] = b;
+export function uint8ToInt16(input: Uint8Array, offset: number): number {
+    u8[0] = input[offset];
+    u8[1] = input[offset + 1];
 
     return i16[0];
 }
 
-export function uint8ToUint16(a: number, b: number): number {
-    u8[0] = a;
-    u8[1] = b;
+export function uint8ToUint16(input: Uint8Array, offset: number): number {
+    u8[0] = input[offset];
+    u8[1] = input[offset + 1];
 
     return u16[0];
 }
 
-export function uint8ToInt32(a: number, b: number, c: number, d: number): number {
-    u8[0] = a;
-    u8[1] = b;
-    u8[2] = c;
-    u8[3] = d;
+export function uint8ToInt32(input: Uint8Array, offset: number): number {
+    u8[0] = input[offset];
+    u8[1] = input[offset + 1];
+    u8[2] = input[offset + 2];
+    u8[3] = input[offset + 3];
 
     return i32[0];
 }
 
-export function uint8ToUint32(a: number, b: number, c: number, d: number): number {
-    u8[0] = a;
-    u8[1] = b;
-    u8[2] = c;
-    u8[3] = d;
+export function uint8ToUint32(input: Uint8Array, offset: number): number {
+    u8[0] = input[offset];
+    u8[1] = input[offset + 1];
+    u8[2] = input[offset + 2];
+    u8[3] = input[offset + 3];
 
     return u32[0];
 }
 
-export function uint8ToFloat32(a: number, b: number, c: number, d: number): number {
-    u8[0] = a;
-    u8[1] = b;
-    u8[2] = c;
-    u8[3] = d;
+export function uint8ToFloat32(input: Uint8Array, offset: number): number {
+    u8[0] = input[offset];
+    u8[1] = input[offset + 1];
+    u8[2] = input[offset + 2];
+    u8[3] = input[offset + 3];
 
     return f32[0];
 }
 
-export function uint8ToFloat64(a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number): number {
-    u8[0] = a;
-    u8[1] = b;
-    u8[2] = c;
-    u8[3] = d;
-    u8[4] = e;
-    u8[5] = f;
-    u8[6] = g;
-    u8[7] = h;
+export function uint8ToFloat64(input: Uint8Array, offset: number): number {
+    u8[0] = input[offset];
+    u8[1] = input[offset + 1];
+    u8[2] = input[offset + 2];
+    u8[3] = input[offset + 3];
+    u8[4] = input[offset + 4];
+    u8[5] = input[offset + 5];
+    u8[6] = input[offset + 6];
+    u8[7] = input[offset + 7];
 
     return f64[0];
 }
 
-export function uint8ToBigInt64(a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number): bigint {
-    u8[0] = a;
-    u8[1] = b;
-    u8[2] = c;
-    u8[3] = d;
-    u8[4] = e;
-    u8[5] = f;
-    u8[6] = g;
-    u8[7] = h;
+export function uint8ToBigInt64(input: Uint8Array, offset: number): bigint {
+    u8[0] = input[offset];
+    u8[1] = input[offset + 1];
+    u8[2] = input[offset + 2];
+    u8[3] = input[offset + 3];
+    u8[4] = input[offset + 4];
+    u8[5] = input[offset + 5];
+    u8[6] = input[offset + 6];
+    u8[7] = input[offset + 7];
 
     return i64[0];
 }
 
-export function uint8ToBigUint64(a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number): bigint {
-    u8[0] = a;
-    u8[1] = b;
-    u8[2] = c;
-    u8[3] = d;
-    u8[4] = e;
-    u8[5] = f;
-    u8[6] = g;
-    u8[7] = h;
+export function uint8ToBigUint64(input: Uint8Array, offset: number): bigint {
+    u8[0] = input[offset];
+    u8[1] = input[offset + 1];
+    u8[2] = input[offset + 2];
+    u8[3] = input[offset + 3];
+    u8[4] = input[offset + 4];
+    u8[5] = input[offset + 5];
+    u8[6] = input[offset + 6];
+    u8[7] = input[offset + 7];
 
     return u64[0];
 }

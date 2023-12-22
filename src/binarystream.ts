@@ -1,432 +1,100 @@
-import { uint8ToInt8, uint8ToInt16, uint8ToUint16, uint8ToInt32, uint8ToUint32, uint8ToFloat32, uint8ToFloat64, uint8ToBigInt64, uint8ToBigUint64 } from './utils/typecast.js';
-import { decodeUtf8 } from './utils/decoder.js';
+import { Source, DataType, PrimitiveValue, TypedArray, TypedArrayMap, TypecastMap } from './utils/maps.js';
+
+type Options = {
+    byteOffset?: number;
+    byteLength?: number;
+}
 
 export class BinaryStream {
     buffer: ArrayBuffer;
-    u8: Uint8Array;
+    view: Uint8Array;
     offset: number;
     remaining: number;
 
-    constructor(buffer: ArrayBuffer, offset = 0) {
-        if (offset < 0 || offset > buffer.byteLength)
-            throw new Error('Cannot access buffer at out of bound offset.');
+    constructor(source: Source, options: Options = {}) {
+        if ('buffer' in source) {
+            this.buffer = source.buffer;
+            options.byteOffset ??= source.byteOffset;
+            options.byteLength ??= source.byteLength - (options.byteOffset - source.byteOffset);
 
-        this.buffer = buffer;
-        this.u8 = new Uint8Array(buffer);
-        this.offset = offset;
-        this.remaining = buffer.byteLength;
+            if (options.byteOffset < source.byteOffset || options.byteOffset + options.byteLength > source.byteOffset + source.byteLength || options.byteLength < 0)
+                throw new RangeError('Out of bounds.');
+        } else {
+            this.buffer = source;
+            options.byteOffset ??= 0;
+            options.byteLength ??= source.byteLength - options.byteOffset;
+
+            if (options.byteOffset < 0 || options.byteOffset + options.byteLength > source.byteLength || options.byteLength < 0)
+                throw new RangeError('Out of bounds.');
+        }
+
+        this.view = new Uint8Array(this.buffer, options.byteOffset, options.byteLength);
+        this.offset = 0;
+        this.remaining = options.byteLength;
     }
 
-    /**
-     * @deprecated This function is deprecated and will be removed in future. Use seek instead.
-     */
-    setOffset(offset: number): void {
-        this.seek(offset);
-    }
-
-    /**
-     * Set offset to given value.
-     */
     seek(offset: number): void {
-        if (offset < 0 || offset > this.buffer.byteLength)
-            throw new Error('Cannot access buffer at out of bound offset.');
+        if (offset < 0 || offset > this.view.byteLength)
+            throw new RangeError(`Out of bounds access at offset ${ offset }.`);
 
         this.offset = offset;
-        this.remaining = this.buffer.byteLength - offset;
+        this.remaining = this.view.byteLength - offset;
     }
 
-    /**
-     * Advance offset by given amount of bytes.
-    */
     skip(bytes: number): void {
         if (bytes < 0 || this.remaining < bytes)
-            throw new Error('Cannot access buffer at out of bound offset.');
+            throw new RangeError(`Out of bounds access at offset ${ this.offset + bytes }.`);
 
         this.offset += bytes;
         this.remaining -= bytes;
     }
 
-    /**
-     * Read given amount of bytes and decode them as utf8 string. Returned value will be null-terminated.
-    */
-    readString(length: number): string {
-        if (length < 0 || this.remaining < length)
-            throw new Error('Cannot access buffer at out of bound offset.');
+    substream(bytes: number): BinaryStream {
+        const offset = this.offset;
 
-        let stringOffset = this.offset + length;
-        for (let x = this.offset; x < stringOffset; x++)
-            if (this.u8[x] === 0)
-                stringOffset = x;
+        if (bytes < 0 || this.remaining < bytes)
+            throw new RangeError(`Out of bounds access at offset ${ offset + bytes }.`);
 
-        const data = decodeUtf8(this.u8.subarray(this.offset, stringOffset));
+        this.offset += bytes;
+        this.remaining -= bytes;
 
-        this.offset += length;
-        this.remaining -= length;
-
-        return data;
+        return new BinaryStream(this.buffer, { byteOffset: this.view.byteOffset + offset, byteLength: bytes });
     }
 
-    /**
-     * Read one element as 8-bit integer.
-    */
-    readInt8(): number {
-        if (this.remaining < 1)
-            throw new Error('Cannot access buffer at out of bound offset.');
+    read<T extends DataType>(type: T): PrimitiveValue<T>;
+    read<T extends DataType>(type: T, length: number): TypedArray<T>;
+    read<T extends DataType>(type: T, length?: number): PrimitiveValue<T> | TypedArray<T> {
+        const TypedArray = TypedArrayMap[type];
+        const typecast = TypecastMap[type];
+        const bytes = (length ?? 1) * TypedArray.BYTES_PER_ELEMENT;
+        const offset = this.offset;
 
-        const data = uint8ToInt8(this.u8[this.offset]);
+        if (bytes < 0 || this.remaining < bytes)
+            throw new RangeError(`Out of bounds access at offset ${ offset + bytes }.`);
 
-        this.offset += 1;
-        this.remaining -= 1;
+        this.offset += bytes;
+        this.remaining -= bytes;
 
-        return data;
-    }
+        if (length !== undefined) {
+            const globalOffset = this.view.byteOffset + offset;
 
-    /**
-     * Read given amount of elements as array of 8-bit integers.
-    */
-    readInt8Array(length: number): Int8Array {
-        if (length < 0 || this.remaining < length)
-            throw new Error('Cannot access buffer at out of bound offset.');
+            if (globalOffset % TypedArray.BYTES_PER_ELEMENT === 0)
+                return new TypedArray(this.buffer, globalOffset, length) as TypedArray<T>;
 
-        const data = new Int8Array(length);
+            const data = new TypedArray(length);
 
-        for (let x = 0; x < length; x++)
-            data[x] = uint8ToInt8(this.u8[this.offset + x]);
+            for (let i = 0; i < length; i++) {
+                const iOffset = TypedArray.BYTES_PER_ELEMENT * i + offset;
+                data[i] = typecast !== undefined ? typecast(this.view, iOffset) : this.view[iOffset];
+            }
 
-        this.offset += data.byteLength;
-        this.remaining -= data.byteLength;
-
-        return data;
-    }
-
-    /**
-     * Read one element as 8-bit unsigned integer.
-    */
-    readUint8(): number {
-        if (this.remaining < 1)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = this.u8[this.offset];
-
-        this.offset += 1;
-        this.remaining -= 1;
-
-        return data;
-    }
-
-    /**
-     * Read given amount of elements as array of 8-bit unsigned integers.
-    */
-    readUint8Array(length: number): Uint8Array {
-        if (length < 0 || this.remaining < length)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = new Uint8Array(length);
-
-        for (let x = 0; x < length; x++)
-            data[x] = this.u8[this.offset + x];
-
-        this.offset += data.byteLength;
-        this.remaining -= data.byteLength;
-
-        return data;
-    }
-
-    /**
-     * Read one element as 16-bit integer.
-    */
-    readInt16(): number {
-        if (this.remaining < 2)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = uint8ToInt16(this.u8[this.offset], this.u8[this.offset + 1]);
-
-        this.offset += 2;
-        this.remaining -= 2;
-
-        return data;
-    }
-
-    /**
-     * Read given amount of elements as array of 16-bit integers.
-    */
-    readInt16Array(length: number): Int16Array {
-        if (length < 0 || this.remaining < length * 2)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = new Int16Array(length);
-
-        for (let x = 0; x < length; x++) {
-            const offset = this.offset + x * 2;
-            data[x] = uint8ToInt16(this.u8[offset], this.u8[offset + 1]);
+            return data as TypedArray<T>;
         }
 
-        this.offset += data.byteLength;
-        this.remaining -= data.byteLength;
-
-        return data;
-    }
-
-    /**
-     * Read one element as 16-bit unsigned integer.
-    */
-    readUint16(): number {
-        if (this.remaining < 2)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = uint8ToUint16(this.u8[this.offset], this.u8[this.offset + 1]);
-
-        this.offset += 2;
-        this.remaining -= 2;
-
-        return data;
-    }
-
-    /**
-     * Read given amount of elements as array of 16-bit unsigned integers.
-    */
-    readUint16Array(length: number): Uint16Array {
-        if (length < 0 || this.remaining < length * 2)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = new Uint16Array(length);
-
-        for (let x = 0; x < length; x++) {
-            const offset = this.offset + x * 2;
-            data[x] = uint8ToUint16(this.u8[offset], this.u8[offset + 1]);
-        }
-
-        this.offset += data.byteLength;
-        this.remaining -= data.byteLength;
-
-        return data;
-    }
-
-    /**
-     * Read one element as 32-bit integer.
-    */
-    readInt32(): number {
-        if (this.remaining < 4)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = uint8ToInt32(this.u8[this.offset], this.u8[this.offset + 1], this.u8[this.offset + 2], this.u8[this.offset + 3]);
-
-        this.offset += 4;
-        this.remaining -= 4;
-
-        return data;
-    }
-
-    /**
-     * Read given amount of elements as array of 32-bit integers.
-    */
-    readInt32Array(length: number): Int32Array {
-        if (length < 0 || this.remaining < length * 4)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = new Int32Array(length);
-
-        for (let x = 0; x < length; x++) {
-            const offset = this.offset + x * 4;
-            data[x] = uint8ToInt32(this.u8[offset], this.u8[offset + 1], this.u8[offset + 2], this.u8[offset + 3]);
-        }
-
-        this.offset += data.byteLength;
-        this.remaining -= data.byteLength;
-
-        return data;
-    }
-
-    /**
-     * Read one element as 32-bit unsigned integer.
-    */
-    readUint32(): number {
-        if (this.remaining < 4)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = uint8ToUint32(this.u8[this.offset], this.u8[this.offset + 1], this.u8[this.offset + 2], this.u8[this.offset + 3]);
-
-        this.offset += 4;
-        this.remaining -= 4;
-
-        return data;
-    }
-
-    /**
-     * Read given amount of elements as array of 32-bit unsigned integers.
-    */
-    readUint32Array(length: number): Uint32Array {
-        if (length < 0 || this.remaining < length * 4)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = new Uint32Array(length);
-
-        for (let x = 0; x < length; x++) {
-            const offset = this.offset + x * 4;
-            data[x] = uint8ToUint32(this.u8[offset], this.u8[offset + 1], this.u8[offset + 2], this.u8[offset + 3]);
-        }
-
-        this.offset += data.byteLength;
-        this.remaining -= data.byteLength;
-
-        return data;
-    }
-
-    /**
-     * Read one element as 32-bit float.
-    */
-    readFloat32(): number {
-        if (this.remaining < 4)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = uint8ToFloat32(this.u8[this.offset], this.u8[this.offset + 1], this.u8[this.offset + 2], this.u8[this.offset + 3]);
-
-        this.offset += 4;
-        this.remaining -= 4;
-
-        return data;
-    }
-
-    /**
-     * Read given amount of elements as array of 32-bit floats.
-    */
-    readFloat32Array(length: number): Float32Array {
-        if (length < 0 || this.remaining < length * 4)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = new Float32Array(length);
-
-        for (let x = 0; x < length; x++) {
-            const offset = this.offset + x * 4;
-            data[x] = uint8ToFloat32(this.u8[offset], this.u8[offset + 1], this.u8[offset + 2], this.u8[offset + 3]);
-        }
-
-        this.offset += data.byteLength;
-        this.remaining -= data.byteLength;
-
-        return data;
-    }
-
-    /**
-     * Read one element as 64-bit float.
-    */
-    readFloat64(): number {
-        if (this.remaining < 8)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = uint8ToFloat64(
-            this.u8[this.offset], this.u8[this.offset + 1], this.u8[this.offset + 2], this.u8[this.offset + 3],
-            this.u8[this.offset + 4], this.u8[this.offset + 5], this.u8[this.offset + 6], this.u8[this.offset + 7]
-        );
-
-        this.offset += 8;
-        this.remaining -= 8;
-
-        return data;
-    }
-
-    /**
-     * Read given amount of elements as array of 64-bit floats.
-    */
-    readFloat64Array(length: number): Float64Array {
-        if (length < 0 || this.remaining < length * 8)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = new Float64Array(length);
-
-        for (let x = 0; x < length; x++) {
-            const offset = this.offset + x * 8;
-            data[x] = uint8ToFloat64(
-                this.u8[offset], this.u8[offset + 1], this.u8[offset + 2], this.u8[offset + 3],
-                this.u8[offset + 4], this.u8[offset + 5], this.u8[offset + 6], this.u8[offset + 7]
-            );
-        }
-
-        this.offset += data.byteLength;
-        this.remaining -= data.byteLength;
-
-        return data;
-    }
-
-    /**
-     * Read one element as 64-bit integer.
-    */
-    readBigInt64(): bigint {
-        if (this.remaining < 8)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = uint8ToBigInt64(
-            this.u8[this.offset], this.u8[this.offset + 1], this.u8[this.offset + 2], this.u8[this.offset + 3],
-            this.u8[this.offset + 4], this.u8[this.offset + 5], this.u8[this.offset + 6], this.u8[this.offset + 7]
-        );
-
-        this.offset += 8;
-        this.remaining -= 8;
-
-        return data;
-    }
-
-    /**
-     * Read given amount of elements as array of 64-bit integers.
-    */
-    readBigInt64Array(length: number): BigInt64Array {
-        if (length < 0 || this.remaining < length * 8)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = new BigInt64Array(length);
-
-        for (let x = 0; x < length; x++) {
-            const offset = this.offset + x * 8;
-            data[x] = uint8ToBigInt64(
-                this.u8[offset], this.u8[offset + 1], this.u8[offset + 2], this.u8[offset + 3],
-                this.u8[offset + 4], this.u8[offset + 5], this.u8[offset + 6], this.u8[offset + 7]
-            );
-        }
-
-        this.offset += data.byteLength;
-        this.remaining -= data.byteLength;
-
-        return data;
-    }
-
-    /**
-     * Read one element as 64-bit unsigned integer.
-    */
-    readBigUint64(): bigint {
-        if (this.remaining < 8)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = uint8ToBigUint64(
-            this.u8[this.offset], this.u8[this.offset + 1], this.u8[this.offset + 2], this.u8[this.offset + 3],
-            this.u8[this.offset + 4], this.u8[this.offset + 5], this.u8[this.offset + 6], this.u8[this.offset + 7]
-        );
-
-        this.offset += 8;
-        this.remaining -= 8;
-
-        return data;
-    }
-
-    /**
-     * Read given amount of elements as array of 64-bit unsigned integers.
-    */
-    readBigUint64Array(length: number): BigUint64Array {
-        if (length < 0 || this.remaining < length * 8)
-            throw new Error('Cannot access buffer at out of bound offset.');
-
-        const data = new BigUint64Array(length);
-
-        for (let x = 0; x < length; x++) {
-            const offset = this.offset + x * 8;
-            data[x] = uint8ToBigUint64(
-                this.u8[offset], this.u8[offset + 1], this.u8[offset + 2], this.u8[offset + 3],
-                this.u8[offset + 4], this.u8[offset + 5], this.u8[offset + 6], this.u8[offset + 7]
-            );
-        }
-
-        this.offset += data.byteLength;
-        this.remaining -= data.byteLength;
-
-        return data;
+        return (
+            typecast !== undefined
+            ? typecast(this.view, offset)
+            : this.view[offset]
+        ) as PrimitiveValue<T>;
     }
 }
