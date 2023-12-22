@@ -1,0 +1,36 @@
+{
+    "name": "@cod-evoid/hexcod",
+    "version": "0.0.0",
+    "description": "Fast and easy to use binary reader.",
+    "author": "StivenHunt <fishu61@gmail.com>",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Cod-Evoid/hexcod.git"
+    },
+    "license": "MIT",
+    "type": "module",
+    "files": [
+        "/lib"
+    ],
+    "exports": {
+        ".": {
+            "types": "./lib/hexcod.d.ts",
+            "import": "./lib/hexcod.js"
+        }
+    },
+    "scripts": {
+        "build": "node scripts/build.js",
+        "dev": "node scripts/build.js --dev",
+        "types:emit": "tsc --declaration --emitDeclarationOnly",
+        "types:check": "tsc --noEmit",
+        "lint": "eslint src/ --ext .ts",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "devDependencies": {
+        "@typescript-eslint/eslint-plugin": "^5.62.0",
+        "@typescript-eslint/parser": "^5.62.0",
+        "esbuild": "^0.19.10",
+        "eslint": "^8.56.0",
+        "typescript": "^5.3.3"
+    }
+}
